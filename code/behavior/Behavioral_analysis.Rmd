@@ -1,0 +1,793 @@
+---
+title: "Behavioral_analysis"
+author: "Taehyun Yoo"
+date: "9/5/2022"
+output:
+  html_document:
+    keep_md: yes
+---
+
+# Load packages
+
+```{r packages, include=FALSE}
+library(data.table)
+library(readxl)
+library("tidyverse")
+library('here')
+library("grid")
+library("rstatix")
+library("ggplot2")
+library("ggpubr")
+library("MBESS")
+library(ggprism)
+library(svglite)
+```
+
+# set directory
+
+```{r directory}
+data_dir <- here("data")
+```
+
+# Load information such as the number of subjects
+
+```{r information}
+total_sub_num <- 53
+sub <- sprintf("%02d", 1:total_sub_num)
+#No data
+exc_sub <- c("13", "20", "29", "38", "39", "47", "50")
+sub <- setdiff(sub, exc_sub)
+sub_num <- length(sub)
+
+hier_num = 3
+hier <- c("R", "F", "D")
+```
+
+# Modify data for our purposes
+
+```{r modify-data, include=FALSE}
+data_total <- data.frame()
+
+for (s in 1:sub_num){
+  data_R <- read_excel(paste0(data_dir, '/', sub[s], '/', 'data', sub[s], '_R.xlsx'))
+  data_F <- read_excel(paste0(data_dir, '/', sub[s], '/', 'data', sub[s], '_F.xlsx'))
+  data_D <- read_excel(paste0(data_dir, '/', sub[s], '/', 'data', sub[s], '_D.xlsx'))
+  
+  data_R$sheet = 1
+  data_F$sheet = 2
+  data_D$sheet = 3
+  
+  data_RFD <- rbind(data_R, data_F, data_D)
+  
+  subtmp1=subset(data_RFD,sheet==1, select = c(Subject, Onset, Code, Acc))
+  subtmp1 = subtmp1 %>% filter(Code != 99)
+  sub_R <- as.data.table(subtmp1)
+  sub_R[, inter_RT :=   Onset - shift(Onset, fill=last(Onset))]
+  RT=subset(sub_R, select = c(inter_RT))
+  RT <- RT[-1,]
+  sub_R <- head(sub_R, -1)
+  sub_R[, RT :=  RT]
+  
+  t = as.numeric(substr(sub_R$Code, 9,11))
+  sub_R[, trial_number :=  t]
+  
+  for (i in 1:64){
+    sub_R$condition[sub_R$trial_number == i] = "R1"
+  }
+  subset_R1 <- subset(sub_R, sub_R$condition == "R1")
+  subset_R1 <- as.data.frame(subset_R1)
+  subset_R1['Subject'] <- c(rep(sprintf("%s", sub[s]), 64))
+  subset_R1['Hier'] <- c(rep("R", times = 64))
+  subset_R1['Comp'] <- c(rep("1", times = 64))
+  subset_R1['Condition'] <- c(rep("R1", times = 64))
+  
+  for (i in 65:128){
+    sub_R$condition[sub_R$trial_number == i] = "R2"
+  }
+  subset_R2 <- subset(sub_R, sub_R$condition == "R2")
+  subset_R2 <- as.data.frame(subset_R2)
+  subset_R2['Subject'] <- c(rep(sprintf("%s", sub[s]), 64))
+  subset_R2['Hier'] <- c(rep("R", times = 64))
+  subset_R2['Comp'] <- c(rep("2", times = 64))
+  subset_R2['Condition'] <- c(rep("R2", times = 64))
+  
+  for (i in 129:192){
+    sub_R$condition[sub_R$trial_number == i] = "R4"
+  }
+  subset_R4 <- subset(sub_R, sub_R$condition == "R4")
+  subset_R4 <- as.data.frame(subset_R4)
+  subset_R4['Subject'] <- c(rep(sprintf("%s", sub[s]), 64))
+  subset_R4['Hier'] <- c(rep("R", times = 64))
+  subset_R4['Comp'] <- c(rep("4", times = 64))
+  subset_R4['Condition'] <- c(rep("R4", times = 64))
+  
+  subset_R <- rbind(subset_R1, subset_R2, subset_R4)
+  
+  subtmp2=subset(data_RFD,sheet==2, select = c(Subject, Onset, Code, Acc))
+  subtmp2 = subtmp2 %>% filter(Code != 99)
+  sub_F <- as.data.table(subtmp2)
+  sub_F[, inter_RT :=   Onset - shift(Onset, fill=last(Onset))]
+  RT=subset(sub_F, select = c(inter_RT))
+  RT <- RT[-1,]
+  sub_F <- head(sub_F, -1)
+  sub_F[, RT :=  RT]
+  
+  t = as.numeric(substr(sub_F$Code, 9,11))
+  sub_F[, trial_number :=  t]
+  
+  for (i in 1:64){
+    sub_F$condition[sub_F$trial_number == i] = "F1"
+  }
+  subset_F1 <- subset(sub_F, sub_F$condition == "F1")
+  subset_F1 <- as.data.frame(subset_F1)
+  subset_F1['Subject'] <- c(rep(sprintf("%s", sub[s]), 64))
+  subset_F1['Hier'] <- c(rep("F", times = 64))
+  subset_F1['Comp'] <- c(rep("1", times = 64))
+  subset_F1['Condition'] <- c(rep("F1", times = 64))
+  
+  for (i in 65:128){
+    sub_F$condition[sub_F$trial_number == i] = "F2"
+  }
+  subset_F2 <- subset(sub_F, sub_F$condition == "F2")
+  subset_F2 <- as.data.frame(subset_F2)
+  subset_F2['Subject'] <- c(rep(sprintf("%s", sub[s]), 64))
+  subset_F2['Hier'] <- c(rep("F", times = 64))
+  subset_F2['Comp'] <- c(rep("2", times = 64))
+  subset_F2['Condition'] <- c(rep("F2", times = 64))
+  
+  for (i in 129:192){
+    sub_F$condition[sub_F$trial_number == i] = "F4"
+  }
+  subset_F4 <- subset(sub_F, sub_F$condition == "F4")
+  subset_F4 <- as.data.frame(subset_F4)
+  subset_F4['Subject'] <- c(rep(sprintf("%s", sub[s]), 64))
+  subset_F4['Hier'] <- c(rep("F", times = 64))
+  subset_F4['Comp'] <- c(rep("4", times = 64))
+  subset_F4['Condition'] <- c(rep("F4", times = 64))
+  
+  subset_F <- rbind(subset_F1, subset_F2, subset_F4)
+  
+  subtmp3=subset(data_RFD,sheet==3, select = c(Subject, Onset, Code, Acc))
+  subtmp3 = subtmp3 %>% filter(Code != 99)
+  sub_D <- as.data.table(subtmp3)
+  sub_D[, inter_RT :=   Onset - shift(Onset, fill=last(Onset))]
+  RT=subset(sub_D, select = c(inter_RT))
+  RT <- RT[-1,]
+  sub_D <- head(sub_D, -1)
+  sub_D[, RT :=  RT]
+  
+  t = as.numeric(substr(sub_D$Code, 9,11))
+  sub_D[, trial_number :=  t]
+  
+  for (i in 1:64){
+    sub_D$condition[sub_D$trial_number == i] = "D1"
+  }
+  subset_D1 <- subset(sub_D, sub_D$condition == "D1")
+  subset_D1 <- as.data.frame(subset_D1)
+  subset_D1['Subject'] <- c(rep(sprintf("%s", sub[s]), 64))
+  subset_D1['Hier'] <- c(rep("D", times = 64))
+  subset_D1['Comp'] <- c(rep("1", times = 64))
+  subset_D1['Condition'] <- c(rep("D1", times = 64))
+  
+  for (i in 65:128){
+    sub_D$condition[sub_D$trial_number == i] = "D2"
+  }
+  subset_D2 <- subset(sub_D, sub_D$condition == "D2")
+  subset_D2 <- as.data.frame(subset_D2)
+  subset_D2['Subject'] <- c(rep(sprintf("%s", sub[s]), 64))
+  subset_D2['Hier'] <- c(rep("D", times = 64))
+  subset_D2['Comp'] <- c(rep("2", times = 64))
+  subset_D2['Condition'] <- c(rep("D2", times = 64))
+  
+  for (i in 129:192){
+    sub_D$condition[sub_D$trial_number == i] = "D4"
+  }
+  subset_D4 <- subset(sub_D, sub_D$condition == "D4")
+  subset_D4 <- as.data.frame(subset_D4)
+  subset_D4['Subject'] <- c(rep(sprintf("%s", sub[s]), 64))
+  subset_D4['Hier'] <- c(rep("D", times = 64))
+  subset_D4['Comp'] <- c(rep("4", times = 64))
+  subset_D4['Condition'] <- c(rep("D4", times = 64))
+  
+  subset_D <- rbind(subset_D1, subset_D2, subset_D4)
+  
+  data_sub <- rbind(subset_R, subset_F, subset_D)
+  data_sub <- subset(data_sub, select = c(Subject, Hier, Comp, Condition, Acc, RT))
+  
+  data_sub <- mutate(data_sub, Acc = if_else(Acc == "hit", 100, 0))
+  
+  for (k in 1:length(data_sub$RT)){
+    data_sub$RT[k] = data_sub$RT[k]/10
+  }
+  
+  data_total <- rbind(data_total, data_sub)
+  
+}
+
+data_total <- data_total %>%
+  filter(Subject != "08" & Subject != "11" & Subject != "30" & Subject != "34")
+```
+
+# Summarize RT and Acc
+
+```{r RT&Acc}
+behav_data_RT = 
+  # use data frame
+  data_total %>%
+  filter(Acc == 100) %>%
+  # to filter RT > mean(RT) + 3*sd(RT)
+  group_by(Subject, Condition) %>%
+  mutate(mean_rt = mean(RT), sd_rt = sd(RT)) %>% ungroup() %>%
+  #filter( (  abs(lrt - (mean_lrt)) < ( 3*sd_lrt )) )
+  filter( (  abs(RT - (mean_rt)) < ( 3*sd_rt )) )
+
+behav_data_RT_final <- behav_data_RT %>%
+  group_by(Subject, Hier, Comp, Condition) %>%
+  summarise(RT = median(RT))
+
+behav_data_RT_final <- behav_data_RT_final %>%
+  mutate(Hier = fct_inorder(Hier),
+         Comp = fct_inorder(Comp),
+         Condition = fct_inorder(Condition))
+
+behav_data_RT_final$Hier <- factor(behav_data_RT_final$Hier, levels = c("R", "F", "D"))
+behav_data_RT_final$Comp <- factor(behav_data_RT_final$Comp, levels = c("1", "2", "4"))
+
+behav_data_RT_excluded = 
+  behav_data_RT_final %>%
+  group_by(Condition) %>%
+  mutate(mean_rt = mean(RT), sd_rt = sd(RT)) %>% ungroup() %>%
+  filter( (  abs(RT - (mean_rt)) < ( 3*sd_rt )) )
+
+survived = list()
+
+for (i in 1:length(sub)) {
+  k = length(subset(behav_data_RT_excluded, behav_data_RT_excluded$Subject == sprintf("%s", sub[i]))$Condition)
+  if (k == 9){
+    survived = rbind(survived, sub[i])  
+  }
+}
+
+survived_cha = list()
+
+for (i in 1:length(survived)){
+  survived_cha[[i]] <- sprintf("%s", survived[[i]]) 
+}
+
+behav_data_RT =
+  behav_data_RT_excluded %>%
+  filter(Subject %in% survived_cha)
+
+tmp_RT = subset(behav_data_RT, select = c(Subject, Hier, Comp, Condition, RT))
+tmp_RT$Hier <- factor(tmp_RT$Hier, levels = c("R", "F", "D"))
+tmp_RT$Comp <- factor(tmp_RT$Comp, levels = c("1", "2", "4"))
+
+RT <- tmp_RT[c("Subject","Hier","Comp","RT")]
+RT$Subject <- factor(RT$Subject)
+RT$Hier <- factor(RT$Hier, levels = c("R", "F", "D"))
+RT$Com <- factor(RT$Comp, levels = c("1", "2", "4"))
+summary_RT <- RT %>%
+  group_by(Hier, Comp) %>%
+  summarise(se = sd(RT)/sqrt(n()),
+            RT = mean(RT)) %>%
+  ungroup()
+
+summary_RT <- subset(summary_RT, summary_RT$Hier != "C")
+summary_RT$Hier <- factor(summary_RT$Hier, levels = c("R", "F", "D"))
+summary_RT$Comp <- factor(summary_RT$Comp, levels = c("1", "2", "4"))
+
+data_R_RT <- filter(tmp_RT, Hier == "R")
+data_F_RT <- filter(tmp_RT, Hier == "F")
+data_D_RT <- filter(tmp_RT, Hier == "D")
+
+final_total_data_RT <- rbind(data_R_RT, data_F_RT, data_D_RT)
+
+behav_data_Acc_final <- data_total %>%
+  group_by(Subject, Hier, Comp, Condition) %>%
+  summarise(Acc = mean(Acc))
+
+behav_data_Acc_final <- behav_data_Acc_final %>%
+  mutate(Hier = fct_inorder(Hier),
+         Comp = fct_inorder(Comp),
+         Condition = fct_inorder(Condition))
+
+behav_data_Acc_final$Hier <- factor(behav_data_Acc_final$Hier, levels = c("R", "F", "D"))
+behav_data_Acc_final$Comp <- factor(behav_data_Acc_final$Comp, levels = c("1", "2", "4"))
+
+behav_data_Acc_final =
+  behav_data_Acc_final %>%
+  ungroup()
+
+tmp_Acc=subset(behav_data_Acc_final, select = c(Subject, Hier, Comp, Condition, Acc))
+tmp_Acc$Hier <- factor(tmp_Acc$Hier, levels = c("R", "F", "D"))
+tmp_Acc$Comp <- factor(tmp_Acc$Comp, levels = c("1", "2", "4"))
+
+Acc <- tmp_Acc[c("Subject","Hier","Comp","Acc")]
+Acc$Subject <- factor(Acc$Subject)
+Acc$Hier <- factor(Acc$Hier, levels = c("R", "F", "D"))
+Acc$Comp <- factor(Acc$Comp, levels = c("1", "2", "4"))
+summary_Acc <- Acc %>%
+  group_by(Hier, Comp) %>%
+  summarise(se = sd(Acc)/sqrt(n()),
+            Acc = mean(Acc)) %>%
+  ungroup()
+
+summary_Acc <- subset(summary_Acc, summary_Acc$Hier != "C")
+summary_Acc$Hier <- factor(summary_Acc$Hier, levels = c("R", "F", "D"))
+summary_Acc$Comp <- factor(summary_Acc$Comp, levels = c("1", "2", "4"))
+
+data_R_Acc <- filter(tmp_Acc, Hier == "R")
+data_F_Acc <- filter(tmp_Acc, Hier == "F")
+data_D_Acc <- filter(tmp_Acc, Hier == "D")
+```
+
+# Statistical analysis
+```{r Stat}
+two_way_ANOVA_RT <- anova_test(data = tmp_RT, RT ~ Hier * Comp + Error(Subject / (Hier*Comp)), effect.size = "pes")
+table <- get_anova_table(two_way_ANOVA_RT)
+effect <- c(table[1,"Effect"], table[2,"Effect"], table[3,"Effect"])
+F_value <- c(paste0("F(", table[1,"DFn"], ",", table[1,"DFd"], ") = ", table[1,"F"]), paste0("F(", table[2,"DFn"], ",", table[2,"DFd"], ") = ", table[2,"F"]), paste0("F(", table[3,"DFn"], ",", table[3,"DFd"], ") = ", table[3,"F"]))
+p_value <- c(table[1,"p"], table[2,"p"], table[3,"p"])
+p_value_star <- c(symnum(table[1,"p"], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")), symnum(table[2,"p"], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")), symnum(table[3,"p"], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")))
+pes <- c(table[1,"pes"], table[2,"pes"], table[3,"pes"])
+# ci_data <- function(order){
+#   lims <- conf.limits.ncf(F.value = table[order, "F"], df.1 = table[order, "DFn"], df.2 = table[order, "DFd"], conf.level = .90)
+#   ci <- c(lims$Lower.Limit/(lims$Lower.Limit + table[order, "DFn"] + table[order, "DFd"] + 1), lims$Upper.Limit/(lims$Upper.Limit + table[order, "DFn"] + table[order, "DFd"] + 1))
+#   ci <- round(ci, 3)
+#   ci <- paste0("[", ci[1], ", ", ci[2], "]")
+#   ci
+# }
+# ci <- c(ci_data(1), ci_data(2), ci_data(3))
+
+two_way_ANOVA_RT_table <- data.frame(effect, F_value, p_value, p_value_star, pes)
+two_way_ANOVA_RT_table
+
+# write_csv(two_way_ANOVA_RT_table, "/home/taehyun/Desktop/Behavior_MSHP/results/stat/RT_two_way_ANOVA.csv")
+
+#Two_way_post-hoc_RT(Hier)
+two_way_RT_posthoc_Hier <- function(res) {
+  post_t_test <- t_test(RT ~ Hier, p.adjust.method = "holm", paired = TRUE, data = res, detailed = TRUE)
+  .y. <- c("RT", "RT", "RT")
+  group1 <- c(post_t_test$group1)
+  group2 <- c(post_t_test$group2)
+  comparisons <- c(paste0(post_t_test$group1[1], "-", post_t_test$group2[1]), paste0(post_t_test$group1[2], "-", post_t_test$group2[2]), paste0(post_t_test$group1[3], "-", post_t_test$group2[3]))
+  t_value <- c(paste0("t(", post_t_test$df[1], ") = ", round(post_t_test$statistic[1],3)), paste0("t(", post_t_test$df[2], ") = ", round(post_t_test$statistic[2],3)), paste0("t(", post_t_test$df[3], ") = ", round(post_t_test$statistic[3],3)))
+  adjusted_p_value <- c(post_t_test$p.adj[1], post_t_test$p.adj[2], post_t_test$p.adj[3])
+  adjusted_p_value_star <- c(symnum(post_t_test$p.adj[1], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")), symnum(post_t_test$p.adj[2], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")), symnum(post_t_test$p.adj[3], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")))
+  d <- c(round(abs(post_t_test$statistic[1]/sqrt(post_t_test$n1[1])),3), round(abs(post_t_test$statistic[2]/sqrt(post_t_test$n1[2])),3), round(abs(post_t_test$statistic[3]/sqrt(post_t_test$n1[3])),3))
+  ci <- c(paste0("[", round(post_t_test$conf.low[1],3), ", ", round(post_t_test$conf.high[1],3), "]"), paste0("[", round(post_t_test$conf.low[2],3), ", ", round(post_t_test$conf.high[2],3), "]"), paste0("[", round(post_t_test$conf.low[3],3), ", ", round(post_t_test$conf.high[3],3), "]"))
+  Two_way_post_RT_Hier_table <- data.frame(.y., group1, group2, comparisons, t_value, adjusted_p_value, adjusted_p_value_star, d, ci)
+  Two_way_post_RT_Hier_table
+}
+
+#Two_way_post-hoc_RT(Comp)
+two_way_RT_posthoc_Comp <- function(res) {
+  post_t_test <- t_test(RT ~ Comp, p.adjust.method = "holm", paired = TRUE, data = res, detailed = TRUE)
+  .y. <- c("RT", "RT", "RT")
+  group1 <- c(post_t_test$group1)
+  group2 <- c(post_t_test$group2)
+  comparisons <- c(paste0(post_t_test$group1[1], "-", post_t_test$group2[1]), paste0(post_t_test$group1[2], "-", post_t_test$group2[2]), paste0(post_t_test$group1[3], "-", post_t_test$group2[3]))
+  t_value <- c(paste0("t(", post_t_test$df[1], ") = ", round(post_t_test$statistic[1],3)), paste0("t(", post_t_test$df[2], ") = ", round(post_t_test$statistic[2],3)), paste0("t(", post_t_test$df[3], ") = ", round(post_t_test$statistic[3],3)))
+  adjusted_p_value <- c(post_t_test$p.adj[1], post_t_test$p.adj[2], post_t_test$p.adj[3])
+  adjusted_p_value_star <- c(symnum(post_t_test$p.adj[1], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")), symnum(post_t_test$p.adj[2], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")), symnum(post_t_test$p.adj[3], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")))
+  d <- c(round(abs(post_t_test$statistic[1]/sqrt(post_t_test$n1[1])),3), round(abs(post_t_test$statistic[2]/sqrt(post_t_test$n1[2])),3), round(abs(post_t_test$statistic[3]/sqrt(post_t_test$n1[3])),3))
+  ci <- c(paste0("[", round(post_t_test$conf.low[1],3), ", ", round(post_t_test$conf.high[1],3), "]"), paste0("[", round(post_t_test$conf.low[2],3), ", ", round(post_t_test$conf.high[2],3), "]"), paste0("[", round(post_t_test$conf.low[3],3), ", ", round(post_t_test$conf.high[3],3), "]"))
+  Two_way_post_RT_Comp_table <- data.frame(.y., group1, group2, comparisons, t_value, adjusted_p_value, adjusted_p_value_star, d, ci)
+  Two_way_post_RT_Comp_table
+}
+
+# write_csv(two_way_RT_posthoc_Comp(tmp_RT), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/RT_two_way_ANOVA_post_hoc_comp.csv")
+# write_csv(two_way_RT_posthoc_Hier(tmp_RT), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/RT_two_way_ANOVA_post_hoc_hier.csv")
+
+#One_way_ANOVA_RT (each hierarchy)
+RT_one_way_ANOVA <- function(res) {
+  one_way_ANOVA <- anova_test(data = res, dv = RT, wid = Subject, within = Comp, effect.size = "pes")
+  table <- get_anova_table(one_way_ANOVA)
+  effect <- c(table[1,"Effect"])
+  F_value <- c(paste0("F(", table[1,"DFn"], ",", table[1,"DFd"], ") = ", table[1,"F"]))
+  p_value <- c(table[1,"p"])
+  p_value_star <- c(symnum(table[1,"p"], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")))
+  pes <- c(table[1,"pes"])
+  # lims <- conf.limits.ncf(F.value = table[1, "F"], df.1 = table[1, "DFn"], df.2 = table[1, "DFd"], conf.level = .90)
+  # ci <- c(lims$Lower.Limit/(lims$Lower.Limit + table[1, "DFn"] + table[1, "DFd"] + 1), lims$Upper.Limit/(lims$Upper.Limit + table[1, "DFn"] + table[1, "DFd"] + 1))
+  # ci <- round(ci, 3)
+  # ci <- paste0("[", ci[1], ", ", ci[2], "]")
+  one_way_ANOVA_RT_table <- data.frame(effect, F_value, p_value, p_value_star, pes)
+  one_way_ANOVA_RT_table
+}
+
+# write_csv(RT_one_way_ANOVA(data_R_RT), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/RT_one_way_ANOVA_in_R.csv")
+# write_csv(RT_one_way_ANOVA(data_F_RT), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/RT_one_way_ANOVA_in_F.csv")
+# write_csv(RT_one_way_ANOVA(data_D_RT), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/RT_one_way_ANOVA_in_D.csv")
+
+#post-hoc_RT
+RT_posthoc <- function(res) {
+  post_t_test <- t_test(RT ~ Comp, p.adjust.method = "holm", paired = TRUE, data = res, detailed = TRUE)
+  .y. <- c("RT", "RT", "RT")
+  group1 <- c(post_t_test$group1)
+  group2 <- c(post_t_test$group2)
+  comparisons <- c(paste0(post_t_test$group1[1], "-", post_t_test$group2[1]), paste0(post_t_test$group1[2], "-", post_t_test$group2[2]), paste0(post_t_test$group1[3], "-", post_t_test$group2[3]))
+  t_value <- c(paste0("t(", post_t_test$df[1], ") = ", round(post_t_test$statistic[1],3)), paste0("t(", post_t_test$df[2], ") = ", round(post_t_test$statistic[2],3)), paste0("t(", post_t_test$df[3], ") = ", round(post_t_test$statistic[3],3)))
+  adjusted_p_value <- c(post_t_test$p.adj[1], post_t_test$p.adj[2], post_t_test$p.adj[3])
+  adjusted_p_value_star <- c(symnum(post_t_test$p.adj[1], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")), symnum(post_t_test$p.adj[2], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")), symnum(post_t_test$p.adj[3], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")))
+  d <- c(round(abs(post_t_test$statistic[1]/sqrt(post_t_test$n1[1])),3), round(abs(post_t_test$statistic[2]/sqrt(post_t_test$n1[2])),3), round(abs(post_t_test$statistic[3]/sqrt(post_t_test$n1[3])),3))
+  ci <- c(paste0("[", round(post_t_test$conf.low[1],3), ", ", round(post_t_test$conf.high[1],3), "]"), paste0("[", round(post_t_test$conf.low[2],3), ", ", round(post_t_test$conf.high[2],3), "]"), paste0("[", round(post_t_test$conf.low[3],3), ", ", round(post_t_test$conf.high[3],3), "]"))
+  y.position <- c(2000, 2400, 2200)
+  post_RT_table <- data.frame(.y., group1, group2, comparisons, t_value, adjusted_p_value, adjusted_p_value_star, d, ci, y.position)
+  post_RT_table
+}
+
+# write_csv(RT_posthoc(data_R_RT), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/RT_one_way_ANOVA_posthoc_in_R.csv")
+# write_csv(RT_posthoc(data_F_RT), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/RT_one_way_ANOVA_posthoc_in_F.csv")
+# write_csv(RT_posthoc(data_D_RT), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/RT_one_way_ANOVA_posthoc_in_D.csv")
+
+#Two_way_ANOVA_Acc
+two_way_ANOVA_Acc <- anova_test(data = tmp_Acc, Acc ~ Hier * Comp + Error(Subject / (Hier*Comp)), effect.size = "pes")
+table <- get_anova_table(two_way_ANOVA_Acc)
+effect <- c(table[1,"Effect"], table[2,"Effect"], table[3,"Effect"])
+F_value <- c(paste0("F(", table[1,"DFn"], ",", table[1,"DFd"], ") = ", table[1,"F"]), paste0("F(", table[2,"DFn"], ",", table[2,"DFd"], ") = ", table[2,"F"]), paste0("F(", table[3,"DFn"], ",", table[3,"DFd"], ") = ", table[3,"F"]))
+p_value <- c(table[1,"p"], table[2,"p"], table[3,"p"])
+p_value_star <- c(symnum(table[1,"p"], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")), symnum(table[2,"p"], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")), symnum(table[3,"p"], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")))
+pes <- c(table[1,"pes"], table[2,"pes"], table[3,"pes"])
+# ci_data <- function(order){
+#   lims <- conf.limits.ncf(F.value = table[order, "F"], df.1 = table[order, "DFn"], df.2 = table[order, "DFd"], conf.level = .90)
+#   ci <- c(lims$Lower.Limit/(lims$Lower.Limit + table[order, "DFn"] + table[order, "DFd"] + 1), lims$Upper.Limit/(lims$Upper.Limit + table[order, "DFn"] + table[order, "DFd"] + 1))
+#   ci <- round(ci, 3)
+#   ci <- paste0("[", ci[1], ", ", ci[2], "]")
+#   ci
+# }
+# ci <- c(ci_data(1), ci_data(2), ci_data(3))
+two_way_ANOVA_Acc_table <- data.frame(effect, F_value, p_value, p_value_star, pes)
+two_way_ANOVA_Acc_table
+
+# write_csv(two_way_ANOVA_Acc_table, "/home/taehyun/Desktop/Behavior_MSHP/results/stat/Acc_two_way_ANOVA.csv")
+
+#Two_way_post-hoc_Acc(Hier)
+two_way_Acc_posthoc_Hier <- function(res) {
+  post_t_test <- t_test(Acc ~ Hier, p.adjust.method = "holm", paired = TRUE, data = res, detailed = TRUE)
+  .y. <- c("Acc", "Acc", "Acc")
+  group1 <- c(post_t_test$group1)
+  group2 <- c(post_t_test$group2)
+  comparisons <- c(paste0(post_t_test$group1[1], "-", post_t_test$group2[1]), paste0(post_t_test$group1[2], "-", post_t_test$group2[2]), paste0(post_t_test$group1[3], "-", post_t_test$group2[3]))
+  t_value <- c(paste0("t(", post_t_test$df[1], ") = ", round(post_t_test$statistic[1],3)), paste0("t(", post_t_test$df[2], ") = ", round(post_t_test$statistic[2],3)), paste0("t(", post_t_test$df[3], ") = ", round(post_t_test$statistic[3],3)))
+  adjusted_p_value <- c(post_t_test$p.adj[1], post_t_test$p.adj[2], post_t_test$p.adj[3])
+  adjusted_p_value_star <- c(symnum(post_t_test$p.adj[1], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")), symnum(post_t_test$p.adj[2], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")), symnum(post_t_test$p.adj[3], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")))
+  d <- c(round(abs(post_t_test$statistic[1]/sqrt(post_t_test$n1[1])),3), round(abs(post_t_test$statistic[2]/sqrt(post_t_test$n1[2])),3), round(abs(post_t_test$statistic[3]/sqrt(post_t_test$n1[3])),3))
+  ci <- c(paste0("[", round(post_t_test$conf.low[1],3), ", ", round(post_t_test$conf.high[1],3), "]"), paste0("[", round(post_t_test$conf.low[2],3), ", ", round(post_t_test$conf.high[2],3), "]"), paste0("[", round(post_t_test$conf.low[3],3), ", ", round(post_t_test$conf.high[3],3), "]"))
+  Two_way_post_Acc_Hier_table <- data.frame(.y., group1, group2, comparisons, t_value, adjusted_p_value, adjusted_p_value_star, d, ci)
+  Two_way_post_Acc_Hier_table
+}
+
+#Two_way_post-hoc_Acc(Comp)
+two_way_Acc_posthoc_Comp <- function(res) {
+  post_t_test <- t_test(Acc ~ Comp, p.adjust.method = "holm", paired = TRUE, data = res, detailed = TRUE)
+  .y. <- c("Acc", "Acc", "Acc")
+  group1 <- c(post_t_test$group1)
+  group2 <- c(post_t_test$group2)
+  comparisons <- c(paste0(post_t_test$group1[1], "-", post_t_test$group2[1]), paste0(post_t_test$group1[2], "-", post_t_test$group2[2]), paste0(post_t_test$group1[3], "-", post_t_test$group2[3]))
+  t_value <- c(paste0("t(", post_t_test$df[1], ") = ", round(post_t_test$statistic[1],3)), paste0("t(", post_t_test$df[2], ") = ", round(post_t_test$statistic[2],3)), paste0("t(", post_t_test$df[3], ") = ", round(post_t_test$statistic[3],3)))
+  adjusted_p_value <- c(post_t_test$p.adj[1], post_t_test$p.adj[2], post_t_test$p.adj[3])
+  adjusted_p_value_star <- c(symnum(post_t_test$p.adj[1], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")), symnum(post_t_test$p.adj[2], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")), symnum(post_t_test$p.adj[3], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")))
+  d <- c(round(abs(post_t_test$statistic[1]/sqrt(post_t_test$n1[1])),3), round(abs(post_t_test$statistic[2]/sqrt(post_t_test$n1[2])),3), round(abs(post_t_test$statistic[3]/sqrt(post_t_test$n1[3])),3))
+  ci <- c(paste0("[", round(post_t_test$conf.low[1],3), ", ", round(post_t_test$conf.high[1],3), "]"), paste0("[", round(post_t_test$conf.low[2],3), ", ", round(post_t_test$conf.high[2],3), "]"), paste0("[", round(post_t_test$conf.low[3],3), ", ", round(post_t_test$conf.high[3],3), "]"))
+  Two_way_post_Acc_Comp_table <- data.frame(.y., group1, group2, comparisons, t_value, adjusted_p_value, adjusted_p_value_star, d, ci)
+  Two_way_post_Acc_Comp_table
+}
+
+# write_csv(two_way_Acc_posthoc_Comp(tmp_Acc), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/Acc_two_way_ANOVA_post_hoc_comp.csv")
+# write_csv(two_way_Acc_posthoc_Hier(tmp_Acc), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/Acc_two_way_ANOVA_post_hoc_hier.csv")
+
+#One_way_ANOVA_Acc (each hierarchy)
+Acc_one_way_ANOVA <- function(res) {
+  one_way_ANOVA <- anova_test(data = res, dv = Acc, wid = Subject, within = Comp, effect.size = "pes")
+  table <- get_anova_table(one_way_ANOVA)
+  effect <- c(table[1,"Effect"])
+  F_value <- c(paste0("F(", table[1,"DFn"], ",", table[1,"DFd"], ") = ", table[1,"F"]))
+  p_value <- c(table[1,"p"])
+  p_value_star <- c(symnum(table[1,"p"], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")))
+  pes <- c(table[1,"pes"])
+  # lims <- conf.limits.ncf(F.value = table[1, "F"], df.1 = table[1, "DFn"], df.2 = table[1, "DFd"], conf.level = .90)
+  # ci <- c(lims$Lower.Limit/(lims$Lower.Limit + table[1, "DFn"] + table[1, "DFd"] + 1), lims$Upper.Limit/(lims$Upper.Limit + table[1, "DFn"] + table[1, "DFd"] + 1))
+  # ci <- round(ci, 3)
+  # ci <- paste0("[", ci[1], ", ", ci[2], "]")
+  one_way_ANOVA_Acc_table <- data.frame(effect, F_value, p_value, p_value_star, pes)
+  one_way_ANOVA_Acc_table
+}
+
+# write_csv(Acc_one_way_ANOVA(data_R_Acc), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/Acc_one_way_ANOVA_in_R.csv")
+# write_csv(Acc_one_way_ANOVA(data_F_Acc), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/Acc_one_way_ANOVA_in_F.csv")
+# write_csv(Acc_one_way_ANOVA(data_D_Acc), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/Acc_one_way_ANOVA_in_D.csv")
+
+#post-hoc_Acc
+Acc_posthoc <- function(res) {
+  post_t_test <- t_test(Acc ~ Comp, p.adjust.method = "holm", paired = TRUE, data = res, detailed = TRUE)
+  .y. <- c("Acc", "Acc", "Acc")
+  group1 <- c(post_t_test$group1)
+  group2 <- c(post_t_test$group2)
+  comparisons <- c(paste0(post_t_test$group1[1], "-", post_t_test$group2[1]), paste0(post_t_test$group1[2], "-", post_t_test$group2[2]), paste0(post_t_test$group1[3], "-", post_t_test$group2[3]))
+  t_value <- c(paste0("t(", post_t_test$df[1], ") = ", round(post_t_test$statistic[1],3)), paste0("t(", post_t_test$df[2], ") = ", round(post_t_test$statistic[2],3)), paste0("t(", post_t_test$df[3], ") = ", round(post_t_test$statistic[3],3)))
+  adjusted_p_value <- c(post_t_test$p.adj[1], post_t_test$p.adj[2], post_t_test$p.adj[3])
+  adjusted_p_value_star <- c(symnum(post_t_test$p.adj[1], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "ns")), symnum(post_t_test$p.adj[2], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")), symnum(post_t_test$p.adj[3], cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c("***", "**", "*", "")))
+  d <- c(round(abs(post_t_test$statistic[1]/sqrt(post_t_test$n1[1])),3), round(abs(post_t_test$statistic[2]/sqrt(post_t_test$n1[2])),3), round(abs(post_t_test$statistic[3]/sqrt(post_t_test$n1[3])),3))
+  ci <- c(paste0("[", round(post_t_test$conf.low[1],3), ", ", round(post_t_test$conf.high[1],3), "]"), paste0("[", round(post_t_test$conf.low[2],3), ", ", round(post_t_test$conf.high[2],3), "]"), paste0("[", round(post_t_test$conf.low[3],3), ", ", round(post_t_test$conf.high[3],3), "]"))
+  y.position <- c(100.5, 102, 103.5)
+  post_RT_table <- data.frame(.y., group1, group2, comparisons, t_value, adjusted_p_value, adjusted_p_value_star, d, ci, y.position)
+  post_RT_table
+}
+
+# write_csv(Acc_posthoc(data_R_Acc), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/Acc_one_way_ANOVA_posthoc_in_R.csv")
+# write_csv(Acc_posthoc(data_F_Acc), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/Acc_one_way_ANOVA_posthoc_in_F.csv")
+# write_csv(Acc_posthoc(data_D_Acc), "/home/taehyun/Desktop/Behavior_MSHP/results/stat/Acc_one_way_ANOVA_posthoc_in_D.csv")
+```
+
+# Plot
+```{r Plot}
+hier_names <- c(
+  'R'="Response",
+  'F'="Feature",
+  'D'="Dimension"
+  )
+
+# plot(RT)
+my_plot_RT <- ggplot(summary_RT,aes(x=Comp,y=RT)) +
+  geom_bar(aes(fill = Hier, alpha = Comp), stat="identity", position="dodge")+
+  geom_errorbar(aes(ymin=RT-se,ymax=RT+se),
+                position=position_dodge(0.9),width=0.2, alpha = 1)+
+  facet_grid(. ~Hier, labeller = as_labeller(hier_names)) +
+  #scale_fill_manual(values = c("#8B488F", "#E6E007", "#C22D26")) +
+  scale_fill_manual(values = c("#2B6A6C", "#F29724", "#B80D48")) + 
+  scale_alpha_manual(values=c(0.3, 0.7, 1), guide = FALSE) +
+  scale_x_discrete(limits=c("1", "2", "4")) +
+  coord_cartesian(ylim=c(200,3000)) +
+  scale_y_continuous(breaks = c(1000, 2000)) +
+  labs(x ="Complexity", y = "Reaction time (ms)") +
+  theme(panel.grid.major=element_line(colour="Grey", linetype="dotted"), panel.grid.minor=element_blank(), panel.background=element_rect(fill="transparent",colour=NA), 
+        axis.line = element_line(colour="Black"), 
+        plot.title=element_text(hjust = 0.5, face="bold", size=20, vjust=2, family = "Arial Narrow"),
+        axis.title.x = element_text(size = 20, colour = "Black"),
+        axis.text = element_text(size = 15, colour = "Black"),
+        axis.text.y = element_text(size = 15, colour = "Black"),
+        axis.title.y = element_text(size = 20, colour = "Black"),
+        strip.text = element_text(size = 15, face = "bold", colour = "white"),
+        legend.position = "none")
+  
+total_K_RT <- function(R, F, D){
+  K1 <- RT_posthoc(R) %>% mutate(Hier = "R")
+  K2 <- RT_posthoc(F) %>% mutate(Hier = "F")
+  K3 <- RT_posthoc(D) %>% mutate(Hier = "D")
+  K <- rbind(tibble(K1), tibble(K2), tibble(K3))
+  K <- K %>% mutate(Hier = fct_relevel(Hier, "R", "F", "D"))
+  K <- subset(K, K$adjusted_p_value_star != "")
+  K
+}
+
+my_plot_RT <- my_plot_RT +
+  add_pvalue(total_K_RT(data_R_RT, data_F_RT, data_D_RT),
+             xmin = "group1", xmax = "group2",
+             label = "adjusted_p_value_star",
+             y.position = "y.position",
+             bracket.size = 0.3,
+             label.size = 4)
+
+g <- grid.force(ggplotGrob(my_plot_RT))
+grobs_df <- do.call(cbind.data.frame, grid.ls(g, print = FALSE))
+grobs_df$gPath_full <- paste(grobs_df$gPath, grobs_df$name, sep = "::")
+grobs_df$gPath_full <- gsub(pattern = "layout::", 
+                            replacement = "", 
+                            x = grobs_df$gPath_full, 
+                            fixed = TRUE)
+# Get the gPaths of the strip background grobs
+strip_bg_gpath <- grobs_df$gPath_full[grepl(pattern = ".*strip\\.background.*", 
+                                            x = grobs_df$gPath_full)]
+strip_bg_gpath[1] # example of a gPath for strip background 
+## [1] "strip-t-1.7-5-7-5::strip.1-1-1-1::strip.background.x..rect.5374"
+
+cl <- c("#2B6A6C", "#F29724", "#B80D48")
+for (i in 1:length(strip_bg_gpath)){
+  g <- editGrob(grob = g, gPath = strip_bg_gpath[i], gp = gpar(fill = cl[i]))
+}
+
+# # Draw the edited plot
+grid.newpage(); grid.draw(g)
+
+# ggsave(here("results", "figure", "RT.svg"), g, width = 160, height = 120, units = "mm")
+
+# plot(Acc)
+my_plot_Acc <- ggplot(summary_Acc,aes(x=Comp,y=Acc)) +
+  geom_bar(aes(fill = Hier, alpha = Comp), stat="identity", position="dodge")+
+  geom_errorbar(aes(ymin=Acc-se,ymax=Acc+se),
+                position=position_dodge(0.9),width=0.2, alpha = 1)+
+  facet_grid(. ~Hier, labeller = as_labeller(hier_names)) +
+  #scale_fill_manual(values = c("#8B488F", "#E6E007", "#C22D26")) +
+  scale_fill_manual(values = c("#2B6A6C", "#F29724", "#B80D48")) + 
+  scale_alpha_manual(values=c(0.3, 0.7, 1), guide = FALSE) +
+  scale_x_discrete(limits=c("1", "2", "4")) +
+  coord_cartesian(ylim=c(90,106)) +
+  scale_y_continuous(breaks = seq(90, 100, 5))+
+  labs(x ="Complexity", y = "Accuracy (%)") +
+  theme(panel.grid.major=element_line(colour="Grey", linetype="dotted"), panel.grid.minor=element_blank(), panel.background=element_rect(fill="transparent",colour=NA), 
+        axis.line = element_line(colour="Black"), 
+        plot.title=element_text(hjust = 0.5, face="bold", size=20, vjust=2, family = "Arial Narrow"),
+        axis.title.x = element_text(size = 20, colour = "Black"),
+        axis.text = element_text(size = 15, colour = "Black"),
+        axis.text.y = element_text(size = 15, colour = "Black"),
+        axis.title.y = element_text(size = 20, colour = "Black"),
+        strip.text = element_text(size = 15, face = "bold", colour = "white"),
+        legend.position = "none")
+
+total_K_Acc <- function(R, F, D){
+  K1 <- Acc_posthoc(R) %>% mutate(Hier = "R")
+  K2 <- Acc_posthoc(F) %>% mutate(Hier = "F")
+  K3 <- Acc_posthoc(D) %>% mutate(Hier = "D")
+  K <- rbind(tibble(K1), tibble(K2), tibble(K3))
+  K <- K %>% mutate(Hier = fct_relevel(Hier, "R", "F", "D"))
+  K <- subset(K, K$adjusted_p_value_star != "")
+  K
+}
+
+my_plot_Acc <- my_plot_Acc +
+  add_pvalue(total_K_Acc(data_R_Acc, data_F_Acc, data_D_Acc),
+             xmin = "group1", xmax = "group2",
+             label = "adjusted_p_value_star",
+             y.position = "y.position",
+             bracket.size = 0.3,
+             label.size = 4)
+
+g <- grid.force(ggplotGrob(my_plot_Acc))
+grobs_df <- do.call(cbind.data.frame, grid.ls(g, print = FALSE))
+grobs_df$gPath_full <- paste(grobs_df$gPath, grobs_df$name, sep = "::")
+grobs_df$gPath_full <- gsub(pattern = "layout::", 
+                            replacement = "", 
+                            x = grobs_df$gPath_full, 
+                            fixed = TRUE)
+# Get the gPaths of the strip background grobs
+strip_bg_gpath <- grobs_df$gPath_full[grepl(pattern = ".*strip\\.background.*", 
+                                            x = grobs_df$gPath_full)]
+strip_bg_gpath[1] # example of a gPath for strip background 
+## [1] "strip-t-1.7-5-7-5::strip.1-1-1-1::strip.background.x..rect.5374"
+
+cl <- c("#2B6A6C", "#F29724", "#B80D48")
+for (i in 1:length(strip_bg_gpath)){
+  g <- editGrob(grob = g, gPath = strip_bg_gpath[i], gp = gpar(fill = cl[i]))
+}
+
+# # Draw the edited plot
+grid.newpage(); grid.draw(g)
+
+# ggsave(here("results", "figure", "Acc.svg"), g, width = 160, height = 120, units = "mm")
+```
+
+# Plot_final
+```{r Plot_final}
+hier_names <- c(
+  'R'="Response",
+  'F'="Feature",
+  'D'="Dimension"
+  )
+
+# plot(RT)
+my_plot_RT <- ggplot(summary_RT,aes(x=Comp,y=RT)) +
+  geom_bar(aes(fill = Hier, alpha = Comp), stat="identity", position="dodge")+
+  geom_errorbar(aes(ymin=RT-se,ymax=RT+se),
+                position=position_dodge(0.9),width=0.2, alpha = 1)+
+  facet_grid(. ~Hier, labeller = as_labeller(hier_names)) +
+  #scale_fill_manual(values = c("#8B488F", "#E6E007", "#C22D26")) +
+  scale_fill_manual(values = c("#2B6A6C", "#F29724", "#B80D48")) + 
+  scale_alpha_manual(values=c(0.3, 0.7, 1), guide = FALSE) +
+  scale_x_discrete(limits=c("1", "2", "4")) +
+  coord_cartesian(ylim=c(200,2500)) +
+  scale_y_continuous(breaks = c(1000, 2000)) +
+  labs(x ="Complexity", y = "Reaction time (ms)") +
+  theme(panel.grid.major=element_line(colour="Grey", linetype="dotted"), panel.grid.minor=element_blank(), panel.background=element_rect(fill="transparent",colour=NA), 
+        axis.line = element_line(colour="Black"), 
+        axis.title.x = element_blank(),
+        axis.text = element_text(size = 18, colour = "Black"),
+        axis.text.y = element_blank(),
+        axis.title.y = element_blank(),
+        strip.text = element_text(size = 20, face = "bold", colour = "white"),
+        legend.position = "none")
+  
+total_K_RT <- function(R, F, D){
+  K1 <- RT_posthoc(R) %>% mutate(Hier = "R")
+  K2 <- RT_posthoc(F) %>% mutate(Hier = "F")
+  K3 <- RT_posthoc(D) %>% mutate(Hier = "D")
+  K <- rbind(tibble(K1), tibble(K2), tibble(K3))
+  K <- K %>% mutate(Hier = fct_relevel(Hier, "R", "F", "D"))
+  K <- subset(K, K$adjusted_p_value_star != "")
+  K
+}
+
+my_plot_RT <- my_plot_RT +
+  add_pvalue(total_K_RT(data_R_RT, data_F_RT, data_D_RT),
+             xmin = "group1", xmax = "group2",
+             label = "adjusted_p_value_star",
+             y.position = "y.position",
+             bracket.size = 0.3,
+             label.size = 7)
+
+g <- grid.force(ggplotGrob(my_plot_RT))
+grobs_df <- do.call(cbind.data.frame, grid.ls(g, print = FALSE))
+grobs_df$gPath_full <- paste(grobs_df$gPath, grobs_df$name, sep = "::")
+grobs_df$gPath_full <- gsub(pattern = "layout::", 
+                            replacement = "", 
+                            x = grobs_df$gPath_full, 
+                            fixed = TRUE)
+# Get the gPaths of the strip background grobs
+strip_bg_gpath <- grobs_df$gPath_full[grepl(pattern = ".*strip\\.background.*", 
+                                            x = grobs_df$gPath_full)]
+strip_bg_gpath[1] # example of a gPath for strip background 
+## [1] "strip-t-1.7-5-7-5::strip.1-1-1-1::strip.background.x..rect.5374"
+
+cl <- c("#2B6A6C", "#F29724", "#B80D48")
+for (i in 1:length(strip_bg_gpath)){
+  g <- editGrob(grob = g, gPath = strip_bg_gpath[i], gp = gpar(fill = cl[i]))
+}
+
+# # Draw the edited plot
+grid.newpage(); grid.draw(g)
+
+# ggsave(here("results", "figure", "RT_final.jpg"), g, width = 160, height = 120, units = "mm")
+
+# plot(Acc)
+my_plot_Acc <- ggplot(summary_Acc,aes(x=Comp,y=Acc)) +
+  geom_bar(aes(fill = Hier, alpha = Comp), stat="identity", position="dodge")+
+  geom_errorbar(aes(ymin=Acc-se,ymax=Acc+se),
+                position=position_dodge(0.9),width=0.2, alpha = 1)+
+  facet_grid(. ~Hier, labeller = as_labeller(hier_names)) +
+  #scale_fill_manual(values = c("#8B488F", "#E6E007", "#C22D26")) +
+  scale_fill_manual(values = c("#2B6A6C", "#F29724", "#B80D48")) + 
+  scale_alpha_manual(values=c(0.3, 0.7, 1), guide = FALSE) +
+  scale_x_discrete(limits=c("1", "2", "4")) +
+  coord_cartesian(ylim=c(90,104)) +
+  scale_y_continuous(breaks = seq(90, 100, 5))+
+  labs(x ="Complexity", y = "Accuracy (%)") +
+  theme(panel.grid.major=element_line(colour="Grey", linetype="dotted"), panel.grid.minor=element_blank(), panel.background=element_rect(fill="transparent",colour=NA), 
+        axis.line = element_line(colour="Black"), 
+        axis.title.x = element_blank(),
+        axis.text = element_text(size = 18, colour = "Black"),
+        axis.text.y = element_blank(),
+        axis.title.y = element_blank(),
+        strip.text = element_text(size = 20, face = "bold", colour = "white"),
+        legend.position = "none")
+
+total_K_Acc <- function(R, F, D){
+  K1 <- Acc_posthoc(R) %>% mutate(Hier = "R")
+  K2 <- Acc_posthoc(F) %>% mutate(Hier = "F")
+  K3 <- Acc_posthoc(D) %>% mutate(Hier = "D")
+  K <- rbind(tibble(K1), tibble(K2), tibble(K3))
+  K <- K %>% mutate(Hier = fct_relevel(Hier, "R", "F", "D"))
+  K <- subset(K, K$adjusted_p_value_star != "")
+  K
+}
+
+my_plot_Acc <- my_plot_Acc +
+  add_pvalue(total_K_Acc(data_R_Acc, data_F_Acc, data_D_Acc),
+             xmin = "group1", xmax = "group2",
+             label = "adjusted_p_value_star",
+             y.position = "y.position",
+             bracket.size = 0.3,
+             label.size = 7)
+
+g <- grid.force(ggplotGrob(my_plot_Acc))
+grobs_df <- do.call(cbind.data.frame, grid.ls(g, print = FALSE))
+grobs_df$gPath_full <- paste(grobs_df$gPath, grobs_df$name, sep = "::")
+grobs_df$gPath_full <- gsub(pattern = "layout::", 
+                            replacement = "", 
+                            x = grobs_df$gPath_full, 
+                            fixed = TRUE)
+# Get the gPaths of the strip background grobs
+strip_bg_gpath <- grobs_df$gPath_full[grepl(pattern = ".*strip\\.background.*", 
+                                            x = grobs_df$gPath_full)]
+strip_bg_gpath[1] # example of a gPath for strip background 
+## [1] "strip-t-1.7-5-7-5::strip.1-1-1-1::strip.background.x..rect.5374"
+
+cl <- c("#2B6A6C", "#F29724", "#B80D48")
+for (i in 1:length(strip_bg_gpath)){
+  g <- editGrob(grob = g, gPath = strip_bg_gpath[i], gp = gpar(fill = cl[i]))
+}
+
+# # Draw the edited plot
+grid.newpage(); grid.draw(g)
+
+# ggsave(here("results", "figure", "Acc_final.jpg"), g, width = 160, height = 120, units = "mm")
+```
