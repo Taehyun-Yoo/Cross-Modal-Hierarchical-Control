@@ -27,8 +27,8 @@ This folder contains scripts related to behavioral/fMRI analysis.
 
 ### `data/`
 
-This folder contains raw & modified behavioral data.
-We also provide raw fMRI data via oppenneuro (https://openneuro.org/datasets/ds006628)
+This folder contains both raw and modified behavioral data.
+Raw fMRI data are also available via OpenNeuro (https://openneuro.org/datasets/ds006628)
 
 - `behavior_raw/`: raw behavior data for each task (response: two runs / feature: four runs / dimension: two runs)
 - `01~53/`: modified individual behaviora data for analysis
