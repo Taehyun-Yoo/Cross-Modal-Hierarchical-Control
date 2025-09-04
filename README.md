@@ -33,3 +33,7 @@ Raw fMRI data are also available via OpenNeuro (https://openneuro.org/datasets/d
 - `behavior_raw/`: raw behavior data for each task (response: two runs / feature: four runs / dimension: two runs)
 
 - `01~53/`: modified individual behaviora data for analysis
+
+### 'Cross-Modal Hierarchical Control.Rproj'
+
+This file is the R project file for behavioral analysis
