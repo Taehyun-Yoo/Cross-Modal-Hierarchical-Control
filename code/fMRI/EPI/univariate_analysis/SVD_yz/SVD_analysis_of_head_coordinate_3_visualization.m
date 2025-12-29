@@ -1,0 +1,403 @@
+clear all
+clc
+
+%% some warmup for the motivation :)
+
+%use the rand function (uniform distribution), but it should work with
+%other distributions as well
+% t1 = rand(20,1);
+% x  = 40 + t1*30;       % some right hemisphere positions
+% 
+% t1 = rand(20,1);
+% x  = [x; -40 - t1*30];  % some left hemisphere positions
+% 
+% t1 = rand(40,1);
+% y  = 20 + t1*40;       % rather frontal positions 
+% 
+% t1 = rand(40,1);
+% z = 0.5*y+30 + t1*10;  % creating a tilted plane with noise
+% 
+% figure('Name','Simulated coordinates (clear left/right separation)');
+% 
+% plot3(x,y,z,' or');
+% daspect([1 1 1]);
+% xlabel('left  - right');
+% ylabel('poste - anter');
+% zlabel('infer - super');
+% axis([-80 80 -20 80 0 100]);
+% title('Simulated coordinates (clear left/right separation)');
+
+base_dir = '/data/';    % Your project folder
+project_dir = strcat(base_dir, 'Project1/MSHP/');
+data_dir = strcat(project_dir, 'analysis/results_2nd/SVD_analysis_yz_2');
+
+%% copying the simulated example into the matlab variable example
+
+%example=zeros(size(x,1),6);
+%example(:,1) = x;
+%example(:,2) = y; 
+%example(:,3) = z;
+
+%% reading the file example.data (alternative to the previous point)
+% 
+importfilename_origin = strcat(data_dir, '/total_data_left_0_05_k0.txt');  % Hierarchy_contrast condition
+%H_data = importdata(importfilename ,'');
+
+fid = fopen(importfilename_origin, 'r');
+H_data = textscan(fid, '%f %f %f %f %f sub%f', 'Delimiter', '\t'); % Adjust format and delimiter as needed
+fclose(fid);
+
+H_data = cell2mat(H_data);
+
+for i = 1:length(H_data)
+    k{i} = length(find(H_data(i,6) == H_data(:,6)));
+end
+
+index = [];
+
+for j = 1:length(k)
+    if k{j} == 3
+        index(j) = 1;
+    else
+        index(j) = 0;
+    end
+end
+
+% for j = 1:length(k)
+%     index(j) = 1;     
+% end
+
+index_array = find(index==1);
+
+for j = 1:length(index_array)
+    choosen_H_data(j,:) = H_data(index_array(j),:);
+end
+
+final_H_data = sortrows(choosen_H_data, [4]);
+
+% example = importdata(importfilename); % reading the coordinates
+example = [final_H_data]; % reading the coordinates
+n_example = size(final_H_data,1);
+importfilename = 'Tcom_total.statdata';
+% % just looking at the coordinates
+%  example(:,1:3)
+% 
+ % selecting all points of the right hem and deleting them
+%  rhidx=example(:,1)>0;
+%  example(rhidx,:)=[];
+%  example(:,1:3)
+% 
+% Mirror the points to the other hemisphere
+mexampl = example(:,1:3).*repmat([-1 1 1],size(example,1),1);
+example = [ example; [mexampl example(:,4:end)]];
+%% First point of the SVD analysis (center the data)
+
+% estimate the centerposition of all points and shiftthe origin
+% to the centerposition
+center_position = mean(example(:,1:3),1);
+centered_pos    = example(:,1:3)-repmat(center_position,n_example*2,1);
+
+%% SVD
+% apply SVD
+[U,S,V] = svd(centered_pos);
+save(strcat(data_dir,'/U.mat'), 'U')
+save(strcat(data_dir,'/S.mat'), 'S')
+save(strcat(data_dir,'/V.mat'), 'V')
+% delete the mirrored coordinates
+
+example(n_example+1:end,:)=[];
+
+% U*S*V'+repmat(center_position,size(example,1),1)
+
+singular_values = diag(S);             % 특이값 벡터
+explained_variance = singular_values.^2;
+
+total_variance = sum(explained_variance);
+explained_variance_ratio = explained_variance / total_variance;
+
+% take the first column for the statistics if the right hem is switched off
+% take the second column if both hemisphere are analyzed
+for_statistics = [centered_pos(1:n_example,:)*V example(:,4:end)];
+
+[fipath,finame,~]=fileparts(importfilename_origin);
+[fipath2,finame2,~]=fileparts(importfilename);
+if isempty(fipath), fipath='.'; end;
+fid=fopen([fipath '/' finame2 '.statdata'],'w');
+fprintf(fid,'%2.3f %2.3f %8d %8d %8d\n',for_statistics');
+fclose(fid);
+
+%modification
+set(gca,'FontName', 'Arial Narrow')
+%set(gca,'defaultTextFontName', 'Helvetica')
+
+%set(findobj(gcf, 'type', 'axes'), 'FontName', 'Helvetica', 'FontSize', 20);
+
+subplot(1,1,1);  % right upper display
+%NLidx=example(:,7)==0;  % non language data
+%lhidx=example(NLidx,1)<0; % left hemisphereric data 
+%lhexample=example(lhidx,:);
+c1idx=example(:,4)==1;
+c2idx=example(:,4)==2;
+c3idx=example(:,4)==3;
+%p.LineWidth = 3;
+plot3(example(c1idx,1), example(c1idx,2),example(c1idx,3),'s', 'MarkerSize', 9, 'Color', '#676767', 'MarkerFaceColor','#2B6A6C');
+hold on
+%plot3(example(c1idx,1),example(c1idx,2),example(c1idx,3),' x', 'Color', '#8B488F');
+%hold on
+plot3(example(c2idx,1), example(c2idx,2),example(c2idx,3),'s', 'MarkerSize', 9, 'Color', '#676767', 'MarkerFaceColor','#F29724');
+hold on
+%plot3(example(c2idx,1),example(c2idx,2),example(c2idx,3),' x', 'Color', '#E6E007');
+%hold on
+plot3(example(c3idx,1), example(c3idx,2),example(c3idx,3),'s', 'MarkerSize', 9, 'Color', '#676767', 'MarkerFaceColor','#B80D48');
+hold on
+grid on;
+
+cent = center_position;
+cent_to_vector1 = cent + 20 * V(1:3);
+cent_to_vector2 = cent + 20 * V(4:6);
+cent_to_vector3 = cent + 20 * V(7:9);
+% vectarrow(cent,cent_to_vector1)
+% hold on
+% vectarrow(cent,cent_to_vector2)
+% hold on
+% vectarrow(cent,cent_to_vector3)
+% hold on
+
+example = [ example; [mexampl example(:,4:end)]];
+
+P=[mean(example(:,1)), mean(example(:,2)), mean(example(:,3))]; %mean
+mX = [example(:,1)-P(1),example(:,1)-P(2),example(:,1)-P(3)]; %subtraction data, X - mean
+
+t=[-100:100]; %t is range.
+SS=V(:,2)*t;
+%line equation
+A=center_position(1)+SS(1,:);
+B=center_position(2)+SS(2,:);
+C=center_position(3)+SS(3,:);
+%drawing
+plot3(A,B,C, 'k-');
+
+[n m] =size(example);
+x0 = P(1);
+y0 = P(2);
+z0 = P(3);
+a = V(1,2);
+b = V(2,2);
+c = V(3,2);
+
+example(n_example+1:end,:)=[];
+
+terror=0;
+
+t_list = zeros(40,1);   % 각 투영점의 t값을 저장할 배열
+
+for i=1:40
+    x = example(i,1);
+    y = example(i,2);
+    z = example(i,3);
+    
+    %get corss point on the line and that is of normal direction of 3d point
+    t = -(a*x0 - a*x + b*y0 - b*y + c*z0 - c*z) / (a^2 + b^2 + c^2);    
+    lx = x0 + t*a ;
+    ly = y0 + t*b ;
+    lz = z0 + t*c ;
+    
+    t_list(i)      = t;
+
+    plot3(lx,ly,lz, '*', 'MarkerSize', 10, 'Color', '#2B6A6C', 'linewidth', 1); %%point on the line - A
+    %plot3(x,y,z,'k+'); %%point of the data - B
+    
+    plot3([x lx],[y ly],[z lz],':', 'Color', '#000000', 'linewidth', 0.3); %line A to B
+    p.LineWidth = 0.5;
+    
+    d1 = ( (lx-x)^2+(ly-y)^2+(lz-z)^2 ); %uclidian distance between A and B
+    terror= d1 + terror;
+    
+end
+
+h = histfit(t_list, 20, 'normal');   % 20 bins는 예시
+
+% h(1): bar (histogram)
+% h(2): fitted normal curve
+x_fit = h(2).XData;   % 1D x축 (t 값 범위)
+y_fit = h(2).YData;   % 정규분포 높이
+
+% 이제 이 둘은 얻었으니까 원래 그려진 건 지워버린다
+delete(h(1));
+delete(h(2));
+
+hold on
+
+% 2) 이 x_fit을 3D 직선으로 매핑
+line_pts = [x0 + x_fit*a; ...
+            y0 + x_fit*b; ...
+            z0 + x_fit*c];
+
+% 3) 위로 올릴 방향 정하기 (보이게 z로 올리자)
+line_dir = [a b c];
+line_dir = line_dir / norm(line_dir);
+
+% view([-1 0 0])에서는 z축이 화면 위쪽, x축은 화면 깊이 방향.
+% -> z축을 기본 up 방향으로 사용하되, 평행하면 y축으로 대체
+if abs(dot(line_dir, [0 0 1])) < 0.9
+    up_dir = [0 0 1];  % z축으로 올림
+else
+    up_dir = [0 1 0];  % z와 거의 평행이면 y축으로 올림
+end
+
+up_dir = up_dir / norm(up_dir);
+scale = 5;  % 높이 조절
+
+pdf_curve = line_pts + up_dir.' .* (scale * y_fit);
+
+% 4) 직선(=x축 역할) 먼저 그리기
+%plot3(line_pts(1,:), line_pts(2,:), line_pts(3,:), 'k-', 'LineWidth', 3);
+
+% 5) 그 위에 histfit에서 가져온 정규곡선 올리기
+plot3(pdf_curve(1,:), pdf_curve(2,:), pdf_curve(3,:), 'k', 'Color', '#2B6A6C', 'LineWidth', 5);
+
+t_list = zeros(40,1);   % 각 투영점의 t값을 저장할 배열
+
+for i=41:80
+    x = example(i,1);
+    y = example(i,2);
+    z = example(i,3);
+    
+    %get corss point on the line and that is of normal direction of 3d point
+    t = -(a*x0 - a*x + b*y0 - b*y + c*z0 - c*z) / (a^2 + b^2 + c^2);    
+    lx = x0 + t*a ;
+    ly = y0 + t*b ;
+    lz = z0 + t*c ;
+    
+    t_list(i-40)      = t;
+
+    plot3(lx,ly,lz,'*', 'MarkerSize', 13, 'Color', '#F29724', 'linewidth', 1); %%point on the line - A
+    %plot3(x,y,z,'k+'); %%point of the data - B
+    plot3([x lx],[y ly],[z lz],':', 'Color', '#000000', 'linewidth', 0.3); %line A to B
+    
+    d1 = ( (lx-x)^2+(ly-y)^2+(lz-z)^2 ); %uclidian distance between A and B
+    terror= d1 + terror;
+    
+end
+
+h = histfit(t_list, 20, 'normal');   % 20 bins는 예시
+
+% h(1): bar (histogram)
+% h(2): fitted normal curve
+x_fit = h(2).XData;   % 1D x축 (t 값 범위)
+y_fit = h(2).YData;   % 정규분포 높이
+
+% 이제 이 둘은 얻었으니까 원래 그려진 건 지워버린다
+delete(h(1));
+delete(h(2));
+
+hold on
+
+% 2) 이 x_fit을 3D 직선으로 매핑
+line_pts = [x0 + x_fit*a; ...
+            y0 + x_fit*b; ...
+            z0 + x_fit*c];
+
+% 3) 위로 올릴 방향 정하기 (보이게 z로 올리자)
+line_dir = [a b c];
+line_dir = line_dir / norm(line_dir);
+
+% view([-1 0 0])에서는 z축이 화면 위쪽, x축은 화면 깊이 방향.
+% -> z축을 기본 up 방향으로 사용하되, 평행하면 y축으로 대체
+if abs(dot(line_dir, [0 0 1])) < 0.9
+    up_dir = [0 0 1];  % z축으로 올림
+else
+    up_dir = [0 1 0];  % z와 거의 평행이면 y축으로 올림
+end
+
+up_dir = up_dir / norm(up_dir);
+scale = 5;  % 높이 조절
+
+pdf_curve = line_pts + up_dir.' .* (scale * y_fit);
+
+% 4) 직선(=x축 역할) 먼저 그리기
+%plot3(line_pts(1,:), line_pts(2,:), line_pts(3,:), 'k-', 'LineWidth', 3);
+
+% 5) 그 위에 histfit에서 가져온 정규곡선 올리기
+plot3(pdf_curve(1,:), pdf_curve(2,:), pdf_curve(3,:), 'k', 'Color', '#F29724', 'LineWidth', 5);
+
+t_list = zeros(40,1);   % 각 투영점의 t값을 저장할 배열
+proj_pts = zeros(40,3); % (lx,ly,lz) 저장
+
+for i=81:120
+    x = example(i,1);
+    y = example(i,2);
+    z = example(i,3);
+    
+    %get corss point on the line and that is of normal direction of 3d point
+    t = -(a*x0 - a*x + b*y0 - b*y + c*z0 - c*z) / (a^2 + b^2 + c^2);    
+    lx = x0 + t*a ;
+    ly = y0 + t*b ;
+    lz = z0 + t*c ;
+    
+    t_list(i-80)      = t;
+    proj_pts(i-80,:)  = [lx ly lz];
+
+    plot3(lx,ly,lz, '*', 'MarkerSize', 13, 'Color', '#B80D48', 'linewidth', 1); %%point on the line - A
+    %plot3(x,y,z,'k+'); %%point of the data - B
+    plot3([x lx],[y ly],[z lz],':', 'Color', '#000000', 'linewidth', 0.3); %line A to B
+    
+    d1 = ( (lx-x)^2+(ly-y)^2+(lz-z)^2 ); %uclidian distance between A and B
+    terror= d1 + terror;
+    
+end
+
+h = histfit(t_list, 20, 'normal');   % 20 bins는 예시
+
+% h(1): bar (histogram)
+% h(2): fitted normal curve
+x_fit = h(2).XData;   % 1D x축 (t 값 범위)
+y_fit = h(2).YData;   % 정규분포 높이
+
+% 이제 이 둘은 얻었으니까 원래 그려진 건 지워버린다
+delete(h(1));
+delete(h(2));
+
+hold on
+
+% 2) 이 x_fit을 3D 직선으로 매핑
+line_pts = [x0 + x_fit*a; ...
+            y0 + x_fit*b; ...
+            z0 + x_fit*c];
+
+% 3) 위로 올릴 방향 정하기 (보이게 z로 올리자)
+line_dir = [a b c];
+line_dir = line_dir / norm(line_dir);
+
+% view([-1 0 0])에서는 z축이 화면 위쪽, x축은 화면 깊이 방향.
+% -> z축을 기본 up 방향으로 사용하되, 평행하면 y축으로 대체
+if abs(dot(line_dir, [0 0 1])) < 0.9
+    up_dir = [0 0 1];  % z축으로 올림
+else
+    up_dir = [0 1 0];  % z와 거의 평행이면 y축으로 올림
+end
+
+up_dir = up_dir / norm(up_dir);
+scale = 5;  % 높이 조절
+
+pdf_curve = line_pts + up_dir.' .* (scale * y_fit);
+
+% 4) 직선(=x축 역할) 먼저 그리기
+%plot3(line_pts(1,:), line_pts(2,:), line_pts(3,:), 'k-', 'LineWidth', 3);
+
+% 5) 그 위에 histfit에서 가져온 정규곡선 올리기
+plot3(pdf_curve(1,:), pdf_curve(2,:), pdf_curve(3,:), 'k', 'Color', '#B80D48', 'LineWidth', 5);
+
+axis([-60 20 -30 80 -30 80]);
+view([-1 0 0]);
+
+pbaspect([1 1 1])
+
+axis equal
+
+yticks(-30:55:80);
+zticks(-30:55:80);
+
+set(gca,'Color','#FFFFFF')
+set(gca, 'linewidth', 1.1)
+grid on
